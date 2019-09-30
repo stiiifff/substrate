@@ -541,20 +541,15 @@ decl_module! {
 		/// You can instantiate contracts only with stored code.
 		pub fn put_code(
 			origin,
-			#[compact] gas_limit: Gas,
 			code: Vec<u8>
 		) -> Result {
-			let origin = ensure_signed(origin)?;
-
-			let (mut gas_meter, imbalance) = gas::buy_gas::<T>(&origin, gas_limit)?;
+			let _origin = ensure_signed(origin)?;
 
 			let schedule = <Module<T>>::current_schedule();
-			let result = wasm::save_code::<T>(code, &mut gas_meter, &schedule);
+			let result = wasm::save_code::<T>(code, &schedule);
 			if let Ok(code_hash) = result {
 				Self::deposit_event(RawEvent::CodeStored(code_hash));
 			}
-
-			gas::refund_unused_gas::<T>(&origin, gas_meter, imbalance);
 
 			result.map(|_| ())
 		}
@@ -896,9 +891,6 @@ pub struct Schedule {
 	/// Version of the schedule.
 	pub version: u32,
 
-	/// Cost of putting a byte of code into storage.
-	pub put_code_per_byte_cost: Gas,
-
 	/// Gas cost of a growing memory by single page.
 	pub grow_mem_cost: Gas,
 
@@ -956,7 +948,6 @@ impl Default for Schedule {
 	fn default() -> Schedule {
 		Schedule {
 			version: 0,
-			put_code_per_byte_cost: 1,
 			grow_mem_cost: 1,
 			regular_op_cost: 1,
 			return_data_per_byte_cost: 1,
@@ -1015,10 +1006,9 @@ impl<T: Trait + Send + Sync> SignedExtension for CheckBlockGasLimit<T> {
 		};
 
 		match call {
-			Call::claim_surcharge(_, _) | Call::update_schedule(_) =>
+			Call::claim_surcharge(_, _) | Call::update_schedule(_) | Call::put_code(_) =>
 				Ok(ValidTransaction::default()),
-			Call::put_code(gas_limit, _)
-				| Call::call(_, _, gas_limit, _)
+			Call::call(_, _, gas_limit, _)
 				| Call::instantiate(_, gas_limit, _, _)
 			=> {
 				// Check if the specified amount of gas is available in the current block.
@@ -1033,5 +1023,13 @@ impl<T: Trait + Send + Sync> SignedExtension for CheckBlockGasLimit<T> {
 			},
 			Call::__PhantomItem(_, _)  => unreachable!("Variant is never constructed"),
 		}
+	}
+
+	fn post_dispatch(_pre: (), _info: DispatchInfo, _len: usize) {
+		// TODO:
+		// - fetch `gas_left` from the storage.
+		// - translate it to weight
+		// - increase the currently used weight
+		unimplemented!()
 	}
 }

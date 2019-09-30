@@ -424,7 +424,7 @@ fn instantiate_and_call_and_deposit_event() {
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
 
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Check at the end to get hash on error easily
 			let creation = Contract::instantiate(
@@ -507,7 +507,7 @@ fn dispatch_call() {
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
 
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Let's keep this assert even though it's redundant. If you ever need to update the
 			// wasm source this test will fail and will show you the actual hash.
@@ -628,7 +628,7 @@ fn dispatch_call_not_dispatched_after_top_level_transaction_failure() {
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
 
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Let's keep this assert even though it's redundant. If you ever need to update the
 			// wasm source this test will fail and will show you the actual hash.
@@ -830,7 +830,7 @@ fn test_set_rent_code_and_hash() {
 		&mut ExtBuilder::default().existential_deposit(50).build(),
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// If you ever need to update the wasm source this test will fail
 			// and will show you the actual hash.
@@ -860,7 +860,7 @@ fn storage_size() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				30_000,
@@ -890,7 +890,7 @@ fn deduct_blocks() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				30_000,
@@ -987,7 +987,7 @@ fn claim_surcharge(blocks: u64, trigger_call: impl Fn() -> bool, removes: bool) 
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				100,
@@ -1023,7 +1023,7 @@ fn removals(trigger_call: impl Fn() -> bool) {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm.clone()));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm.clone()));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				100,
@@ -1062,7 +1062,7 @@ fn removals(trigger_call: impl Fn() -> bool) {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm.clone()));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm.clone()));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				1_000,
@@ -1100,7 +1100,7 @@ fn removals(trigger_call: impl Fn() -> bool) {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm.clone()));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm.clone()));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				50+Balances::minimum_balance(),
@@ -1147,7 +1147,7 @@ fn call_removed_contract() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm.clone()));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm.clone()));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				100,
@@ -1235,7 +1235,7 @@ fn default_rent_allowance_on_instantiate() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				30_000,
@@ -1351,8 +1351,8 @@ fn restoration(test_different_storage: bool, test_restore_to_with_dirty_storage:
 		&mut ExtBuilder::default().existential_deposit(50).build(),
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, restoration_wasm));
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, set_rent_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), restoration_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), set_rent_wasm));
 
 			// If you ever need to update the wasm source this test will fail
 			// and will show you the actual hash.
@@ -1538,7 +1538,7 @@ fn storage_max_value_limit() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
 				30_000,
@@ -1905,8 +1905,8 @@ fn deploy_and_call_other_contract() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, callee_wasm));
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, caller_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), callee_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), caller_wasm));
 
 			assert_ok!(Contract::instantiate(
 				Origin::signed(ALICE),
@@ -2035,7 +2035,7 @@ fn self_destruct_by_draining_balance() {
 		&mut ExtBuilder::default().existential_deposit(50).build(),
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Instantiate the BOB contract.
 			assert_ok!(Contract::instantiate(
@@ -2074,7 +2074,7 @@ fn cannot_self_destruct_while_live() {
 		&mut ExtBuilder::default().existential_deposit(50).build(),
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Instantiate the BOB contract.
 			assert_ok!(Contract::instantiate(
@@ -2277,8 +2277,8 @@ fn destroy_contract_and_transfer_funds() {
 		|| {
 			// Create
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, callee_wasm));
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, caller_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), callee_wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), caller_wasm));
 
 			// This deploys the BOB contract, which in turn deploys the CHARLIE contract during
 			// construction.
@@ -2375,7 +2375,7 @@ fn cannot_self_destruct_in_constructor() {
 		&mut ExtBuilder::default().existential_deposit(50).build(),
 		|| {
 			Balances::deposit_creating(&ALICE, 1_000_000);
-			assert_ok!(Contract::put_code(Origin::signed(ALICE), 100_000, wasm));
+			assert_ok!(Contract::put_code(Origin::signed(ALICE), wasm));
 
 			// Fail to instantiate the BOB contract since its final balance is below existential
 			// deposit.
@@ -2393,6 +2393,8 @@ fn cannot_self_destruct_in_constructor() {
 	);
 }
 
+// TODO: This test relies on put_code, which no longer requires any gas.
+#[ignore]
 #[test]
 fn check_block_gas_limit_works() {
 	with_externalities(
@@ -2400,7 +2402,7 @@ fn check_block_gas_limit_works() {
 		|| {
 			let info = DispatchInfo { weight: 100, class: DispatchClass::Normal };
 			let check = CheckBlockGasLimit::<Test>(Default::default());
-			let call: Call = crate::Call::put_code(1000, vec![]).into();
+			let call: Call = crate::Call::put_code(vec![]).into();
 
 			assert_eq!(
 				check.validate(&0, &call, info, 0), InvalidTransaction::ExhaustsResources.into(),
