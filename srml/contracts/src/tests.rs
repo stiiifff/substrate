@@ -158,6 +158,7 @@ parameter_types! {
 	pub const InstantiateBaseFee: u64 = 175;
 	pub const MaxDepth: u32 = 100;
 	pub const MaxValueSize: u32 = 16_384;
+	pub const WeightPerGasUnit: u32 = 1;
 }
 impl Trait for Test {
 	type Currency = Balances;
@@ -184,6 +185,8 @@ impl Trait for Test {
 	type MaxDepth = MaxDepth;
 	type MaxValueSize = MaxValueSize;
 	type BlockGasLimit = BlockGasLimit;
+	type WeightToFee = ();
+	type WeightPerGasUnit = WeightPerGasUnit;
 }
 
 type Balances = balances::Module<Test>;

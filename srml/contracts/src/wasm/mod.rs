@@ -111,7 +111,7 @@ impl<'a, T: Trait> crate::exec::Vm<T> for WasmVm<'a> {
 		exec: &WasmExecutable,
 		mut ext: E,
 		input_data: Vec<u8>,
-		gas_meter: &mut GasMeter<E::T>,
+		gas_meter: &mut GasMeter,
 	) -> ExecResult {
 		let memory =
 			sandbox::Memory::new(exec.prefab_module.initial, Some(exec.prefab_module.maximum))
@@ -217,7 +217,7 @@ mod tests {
 			&mut self,
 			code_hash: &CodeHash<Test>,
 			endowment: u64,
-			gas_meter: &mut GasMeter<Test>,
+			gas_meter: &mut GasMeter,
 			data: Vec<u8>,
 		) -> Result<(u64, ExecReturnValue), ExecError> {
 			self.instantiates.push(InstantiateEntry {
@@ -235,7 +235,7 @@ mod tests {
 			&mut self,
 			to: &u64,
 			value: u64,
-			gas_meter: &mut GasMeter<Test>,
+			gas_meter: &mut GasMeter,
 			data: Vec<u8>,
 		) -> ExecResult {
 			self.transfers.push(TransferEntry {
@@ -322,7 +322,7 @@ mod tests {
 			&mut self,
 			code: &CodeHash<Test>,
 			value: u64,
-			gas_meter: &mut GasMeter<Test>,
+			gas_meter: &mut GasMeter,
 			input_data: Vec<u8>,
 		) -> Result<(u64, ExecReturnValue), ExecError> {
 			(**self).instantiate(code, value, gas_meter, input_data)
@@ -331,7 +331,7 @@ mod tests {
 			&mut self,
 			to: &u64,
 			value: u64,
-			gas_meter: &mut GasMeter<Test>,
+			gas_meter: &mut GasMeter,
 			input_data: Vec<u8>,
 		) -> ExecResult {
 			(**self).call(to, value, gas_meter, input_data)
@@ -395,7 +395,7 @@ mod tests {
 		wat: &str,
 		input_data: Vec<u8>,
 		ext: E,
-		gas_meter: &mut GasMeter<E::T>,
+		gas_meter: &mut GasMeter,
 	) -> ExecResult {
 		use crate::exec::Vm;
 
@@ -462,7 +462,7 @@ mod tests {
 			CODE_TRANSFER,
 			vec![],
 			&mut mock_ext,
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(
@@ -524,7 +524,7 @@ mod tests {
 			CODE_INSTANTIATE,
 			vec![],
 			&mut mock_ext,
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(
@@ -584,7 +584,7 @@ mod tests {
 			&CODE_TRANSFER_LIMITED_GAS,
 			vec![],
 			&mut mock_ext,
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(
@@ -677,7 +677,7 @@ mod tests {
 			CODE_GET_STORAGE,
 			vec![],
 			mock_ext,
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(output, ExecReturnValue { status: STATUS_SUCCESS, data: [0x22; 32].to_vec() });
@@ -741,7 +741,7 @@ mod tests {
 			CODE_CALLER,
 			vec![],
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 	}
 
@@ -803,7 +803,7 @@ mod tests {
 			CODE_ADDRESS,
 			vec![],
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 	}
 
@@ -858,7 +858,7 @@ mod tests {
 
 	#[test]
 	fn balance() {
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 		let _ = execute(
 			CODE_BALANCE,
 			vec![],
@@ -1041,7 +1041,7 @@ mod tests {
 
 	#[test]
 	fn value_transferred() {
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 		let _ = execute(
 			CODE_VALUE_TRANSFERRED,
 			vec![],
@@ -1077,7 +1077,7 @@ mod tests {
 			CODE_DISPATCH_CALL,
 			vec![],
 			&mut mock_ext,
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(
@@ -1117,7 +1117,7 @@ mod tests {
 			CODE_RETURN_FROM_START_FN,
 			vec![],
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(output, ExecReturnValue { status: STATUS_SUCCESS, data: vec![1, 2, 3, 4] });
@@ -1174,7 +1174,7 @@ mod tests {
 
 	#[test]
 	fn now() {
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 		let _ = execute(
 			CODE_TIMESTAMP_NOW,
 			vec![],
@@ -1233,7 +1233,7 @@ mod tests {
 
 	#[test]
 	fn minimum_balance() {
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 		let _ = execute(
 			CODE_MINIMUM_BALANCE,
 			vec![],
@@ -1301,7 +1301,7 @@ mod tests {
 
 	#[test]
 	fn random() {
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 
 		let output = execute(
 			CODE_RANDOM,
@@ -1346,7 +1346,7 @@ mod tests {
 	#[test]
 	fn deposit_event() {
 		let mut mock_ext = MockExt::default();
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 		let _ = execute(
 			CODE_DEPOSIT_EVENT,
 			vec![],
@@ -1392,7 +1392,7 @@ mod tests {
 	#[test]
 	fn deposit_event_max_topics() {
 		// Checks that the runtime traps if there are more than `max_topic_events` topics.
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 
 		assert_matches!(
 			execute(
@@ -1434,7 +1434,7 @@ mod tests {
 	#[test]
 	fn deposit_event_duplicates() {
 		// Checks that the runtime traps if there are duplicates.
-		let mut gas_meter = GasMeter::with_limit(50_000, 1);
+		let mut gas_meter = GasMeter::with_limit(50_000);
 
 		assert_matches!(
 			execute(
@@ -1505,7 +1505,7 @@ mod tests {
 			CODE_BLOCK_NUMBER,
 			vec![],
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 	}
 
@@ -1545,7 +1545,7 @@ mod tests {
 			CODE_SIMPLE_ASSERT,
 			input_data,
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(output.data.len(), 0);
@@ -1561,7 +1561,7 @@ mod tests {
 			CODE_SIMPLE_ASSERT,
 			input_data,
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).err().unwrap();
 
 		assert_eq!(error.buffer.capacity(), 1_234);
@@ -1615,7 +1615,7 @@ mod tests {
 			CODE_RETURN_WITH_DATA,
 			hex!("00112233445566778899").to_vec(),
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(output, ExecReturnValue { status: 0, data: hex!("445566778899").to_vec() });
@@ -1628,7 +1628,7 @@ mod tests {
 			CODE_RETURN_WITH_DATA,
 			hex!("112233445566778899").to_vec(),
 			MockExt::default(),
-			&mut GasMeter::with_limit(50_000, 1),
+			&mut GasMeter::with_limit(50_000),
 		).unwrap();
 
 		assert_eq!(output, ExecReturnValue { status: 17, data: hex!("5566778899").to_vec() });

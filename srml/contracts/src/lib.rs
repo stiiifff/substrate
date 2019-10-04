@@ -113,8 +113,9 @@ use rstd::{prelude::*, marker::PhantomData};
 use codec::{Codec, Encode, Decode};
 use runtime_io::blake2_256;
 use sr_primitives::{
-	traits::{Hash, StaticLookup, Zero, MaybeSerializeDebug, Member, SignedExtension},
-	weights::DispatchInfo,
+	ApplyError,
+	traits::{Hash, StaticLookup, Zero, MaybeSerializeDebug, Member, SignedExtension, Convert},
+	weights::{DispatchInfo, Weight},
 	transaction_validity::{
 		ValidTransaction, InvalidTransaction, TransactionValidity, TransactionValidityError,
 	},
@@ -124,7 +125,13 @@ use support::{
 	Parameter, decl_module, decl_event, decl_storage, storage::child,
 	parameter_types,
 };
-use support::{traits::{OnFreeBalanceZero, OnUnbalanced, Currency, Get, Time}, IsSubType};
+use support::{
+	traits::{
+		OnFreeBalanceZero, OnUnbalanced, Currency, Get, Time, WithdrawReason, ExistenceRequirement,
+		Imbalance,
+	},
+	IsSubType,
+};
 use system::{ensure_signed, RawOrigin, ensure_root};
 use primitives::storage::well_known_keys::CHILD_STORAGE_KEY_PREFIX;
 
@@ -330,6 +337,8 @@ parameter_types! {
 	pub const DefaultMaxValueSize: u32 = 16_384;
 	/// A reasonable default value for [`Trait::BlockGasLimit`].
 	pub const DefaultBlockGasLimit: u32 = 10_000_000;
+	/// A reasonable default value for [`Trait::WeightPerGasUnit`].
+	pub const DefaultGasWeight: u32 = 1;
 }
 
 pub trait Trait: system::Trait {
@@ -356,6 +365,9 @@ pub trait Trait: system::Trait {
 
 	/// Handler for the unbalanced reduction when making a gas payment.
 	type GasPayment: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+	/// Convert a weight value into a deductible fee based on the currency type.
+	type WeightToFee: Convert<Weight, BalanceOf<Self>>;
 
 	/// Number of block delay an extrinsic claim surcharge has.
 	///
@@ -415,6 +427,9 @@ pub trait Trait: system::Trait {
 
 	/// The maximum amount of gas that could be expended per block.
 	type BlockGasLimit: Get<Gas>;
+
+	/// The number of weight units used by one gas unit.
+	type WeightPerGasUnit: Get<Weight>;
 }
 
 /// Simple contract address determiner.
@@ -639,7 +654,7 @@ decl_module! {
 		}
 
 		fn on_finalize() {
-			GasSpent::kill();
+			GasUsageReport::kill();
 		}
 	}
 }
@@ -664,15 +679,15 @@ impl<T: Trait> Module<T> {
 	fn execute_wasm(
 		origin: T::AccountId,
 		gas_limit: Gas,
-		func: impl FnOnce(&mut ExecutionContext<T, WasmVm, WasmLoader>, &mut GasMeter<T>) -> ExecResult
+		func: impl FnOnce(&mut ExecutionContext<T, WasmVm, WasmLoader>, &mut GasMeter) -> ExecResult
 	) -> ExecResult {
 		// Pay for the gas upfront.
 		//
 		// NOTE: it is very important to avoid any state changes before
 		// paying for the gas.
-		let (mut gas_meter, imbalance) =
+		let mut gas_meter =
 			try_or_exec_error!(
-				gas::buy_gas::<T>(&origin, gas_limit),
+				gas::buy_gas(gas_limit),
 				// We don't have a spare buffer here in the first place, so create a new empty one.
 				Vec::new()
 			);
@@ -693,7 +708,7 @@ impl<T: Trait> Module<T> {
 		//
 		// NOTE: This should go after the commit to the storage, since the storage changes
 		// can alter the balance of the caller.
-		gas::refund_unused_gas::<T>(&origin, gas_meter, imbalance);
+		gas::refund_unused_gas(gas_meter);
 
 		// Execute deferred actions.
 		ctx.deferred.into_iter().for_each(|deferred| {
@@ -831,8 +846,10 @@ decl_event! {
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Contract {
-		/// Gas spent so far in this block.
-		GasSpent get(gas_spent): Gas;
+		/// The amount of gas left from the execution of the latest contract.
+		///
+		/// This value is transient and removed at the block finalization stage.
+		GasUsageReport: (Gas, Gas);
 		/// Current cost schedule for contracts.
 		CurrentSchedule get(current_schedule) config(): Schedule = Schedule::default();
 		/// A mapping from an original code hash to the original code, untouched by instrumentation.
@@ -968,9 +985,65 @@ impl Default for Schedule {
 	}
 }
 
+#[doc(hidden)]
+pub struct PreDispatchCheckData<AccountId, NegativeImbalance> {
+	/// The account id who should receive the refund from the gas leftovers.
+	transactor: AccountId,
+	/// The negative imbalance obtained by withdrawing the value up to the requested gas limit.
+	imbalance: NegativeImbalance,
+}
+
 /// `SignedExtension` that checks if a transaction would exhausts the block gas limit.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct CheckBlockGasLimit<T: Trait + Send + Sync>(PhantomData<T>);
+
+impl<T: Trait + Send + Sync> CheckBlockGasLimit<T> {
+	fn perform_pre_dispatch_checks(
+		who: &T::AccountId,
+		call: &<T as Trait>::Call,
+	) -> rstd::result::Result<Option<PreDispatchCheckData<T::AccountId, NegativeImbalanceOf<T>>>, TransactionValidityError> {
+		let call = match call.is_sub_type() {
+			Some(call) => call,
+			None => return Ok(None),
+		};
+
+		match *call {
+			Call::claim_surcharge(_, _) | Call::update_schedule(_) | Call::put_code(_) => Ok(None),
+			Call::call(_, _, gas_limit, _) | Call::instantiate(_, gas_limit, _, _) => {
+				// Compute how much block weight this transaction can take up in case if it
+				// depleted devoted gas to zero.
+				let gas_weight_limit = gas_to_weight::<T>(gas_limit);
+
+				// Obtain the the available amount of weight left in the current block and discard
+				// this transaction if it can potentially overrun the available amount.
+				let weight_available = <T as system::Trait>::MaximumBlockWeight::get()
+					.saturating_sub(<system::Module<T>>::all_extrinsics_weight());
+				if gas_weight_limit > weight_available {
+					return Err(InvalidTransaction::ExhaustsResources.into());
+				}
+
+				// Compute the fee corresponding for the given gas_weight_limit and attempt
+				// withdrawing from the origin of this transaction.
+				let fee = T::WeightToFee::convert(gas_weight_limit);
+				let imbalance = match T::Currency::withdraw(
+					who,
+					fee,
+					WithdrawReason::Fee,
+					ExistenceRequirement::KeepAlive,
+				) {
+					Ok(imbalance) => imbalance,
+					Err(_) => return Err(InvalidTransaction::Payment.into()),
+				};
+
+				Ok(Some(PreDispatchCheckData {
+					transactor: who.clone(),
+					imbalance,
+				}))
+			},
+			Call::__PhantomItem(_, _)  => unreachable!("Variant is never constructed"),
+		}
+	}
+}
 
 impl<T: Trait + Send + Sync> Default for CheckBlockGasLimit<T> {
 	fn default() -> Self {
@@ -989,47 +1062,58 @@ impl<T: Trait + Send + Sync> SignedExtension for CheckBlockGasLimit<T> {
 	type AccountId = T::AccountId;
 	type Call = <T as Trait>::Call;
 	type AdditionalSigned = ();
-	type Pre = ();
+	/// Optional pre-dispatch check data.
+	///
+	/// It is present only for the contract calls that operate with gas.
+	type Pre = Option<PreDispatchCheckData<T::AccountId, NegativeImbalanceOf<T>>>;
 
 	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
 
+	fn pre_dispatch(
+		self,
+		who: &Self::AccountId,
+		call: &Self::Call,
+		_: DispatchInfo,
+		_: usize,
+	) -> rstd::result::Result<Self::Pre, ApplyError> {
+		Self::perform_pre_dispatch_checks(who, call)
+			.map_err(Into::into)
+	}
+
 	fn validate(
 		&self,
-		_: &Self::AccountId,
+		who: &Self::AccountId,
 		call: &Self::Call,
 		_: DispatchInfo,
 		_: usize,
 	) -> TransactionValidity {
-		let call = match call.is_sub_type() {
-			Some(call) => call,
-			None => return Ok(ValidTransaction::default()),
-		};
+		Self::perform_pre_dispatch_checks(who, call)
+			.map(|_| ValidTransaction::default())
+	}
 
-		match call {
-			Call::claim_surcharge(_, _) | Call::update_schedule(_) | Call::put_code(_) =>
-				Ok(ValidTransaction::default()),
-			Call::call(_, _, gas_limit, _)
-				| Call::instantiate(_, gas_limit, _, _)
-			=> {
-				// Check if the specified amount of gas is available in the current block.
-				// This cannot underflow since `gas_spent` is never greater than `T::BlockGasLimit`.
-				let gas_available = T::BlockGasLimit::get() - <Module<T>>::gas_spent();
-				if *gas_limit > gas_available {
-					// gas limit reached, revert the transaction and retry again in the future
-					InvalidTransaction::ExhaustsResources.into()
-				} else {
-					Ok(ValidTransaction::default())
-				}
-			},
-			Call::__PhantomItem(_, _)  => unreachable!("Variant is never constructed"),
+	fn post_dispatch(pre: Self::Pre, _info: DispatchInfo, _len: usize) {
+		if let Some(PreDispatchCheckData {
+			transactor,
+			imbalance,
+		}) = pre {
+			let (gas_left, gas_spent) = gas::take_gas_usage_report();
+
+			let unused_weight = gas_to_weight::<T>(gas_left);
+			let refund = T::WeightToFee::convert(unused_weight);
+
+			// Refund the unused gas.
+			let refund_imbalance = T::Currency::deposit_creating(&transactor, refund);
+			if let Ok(imbalance) = imbalance.offset(refund_imbalance) {
+				T::GasPayment::on_unbalanced(imbalance);
+			}
+
+			let spent_weight = gas_to_weight::<T>(gas_spent);
+			let next_weight = <system::Module<T>>::all_extrinsics_weight().saturating_add(spent_weight);
+			<system::Module<T>>::set_extrinsics_weight(next_weight);
 		}
 	}
+}
 
-	fn post_dispatch(_pre: (), _info: DispatchInfo, _len: usize) {
-		// TODO:
-		// - fetch `gas_left` from the storage.
-		// - translate it to weight
-		// - increase the currently used weight
-		unimplemented!()
-	}
+fn gas_to_weight<T: Trait>(gas: Gas) -> Weight {
+	(T::WeightPerGasUnit::get() as Gas * gas) as Weight
 }

@@ -49,7 +49,7 @@ pub(crate) struct Runtime<'a, E: Ext + 'a> {
 	scratch_buf: Vec<u8>,
 	schedule: &'a Schedule,
 	memory: sandbox::Memory,
-	gas_meter: &'a mut GasMeter<E::T>,
+	gas_meter: &'a mut GasMeter,
 	special_trap: Option<SpecialTrap>,
 }
 impl<'a, E: Ext + 'a> Runtime<'a, E> {
@@ -58,7 +58,7 @@ impl<'a, E: Ext + 'a> Runtime<'a, E> {
 		input_data: Vec<u8>,
 		schedule: &'a Schedule,
 		memory: sandbox::Memory,
-		gas_meter: &'a mut GasMeter<E::T>,
+		gas_meter: &'a mut GasMeter,
 	) -> Self {
 		Runtime {
 			ext,
@@ -133,9 +133,7 @@ pub enum RuntimeToken {
 	DepositEvent(u32, u32),
 }
 
-impl<T: Trait> Token<T> for RuntimeToken {
-	type Metadata = Schedule;
-
+impl Token<Schedule> for RuntimeToken {
 	fn calculate_amount(&self, metadata: &Schedule) -> Gas {
 		use self::RuntimeToken::*;
 		let value = match *self {
@@ -178,9 +176,9 @@ impl<T: Trait> Token<T> for RuntimeToken {
 /// Charge the gas meter with the specified token.
 ///
 /// Returns `Err(HostError)` if there is not enough gas.
-fn charge_gas<T: Trait, Tok: Token<T>>(
-	gas_meter: &mut GasMeter<T>,
-	metadata: &Tok::Metadata,
+fn charge_gas<T: Trait, Metadata, Tok: Token<Metadata>>(
+	gas_meter: &mut GasMeter,
+	metadata: &Metadata,
 	token: Tok,
 ) -> Result<(), sandbox::HostError> {
 	match gas_meter.charge(metadata, token) {
@@ -275,7 +273,7 @@ fn read_sandbox_memory_as<E: Ext, D: Decode>(
 /// - designated area is not within the bounds of the sandbox memory.
 fn write_sandbox_memory<T: Trait>(
 	schedule: &Schedule,
-	gas_meter: &mut GasMeter<T>,
+	gas_meter: &mut GasMeter,
 	memory: &sandbox::Memory,
 	ptr: u32,
 	buf: &[u8],
@@ -550,15 +548,6 @@ define_env!(Env, <E: Ext>,
 	ext_address(ctx) => {
 		ctx.scratch_buf.clear();
 		ctx.ext.address().encode_to(&mut ctx.scratch_buf);
-		Ok(())
-	},
-
-	// Stores the gas price for the current transaction into the scratch buffer.
-	//
-	// The data is encoded as T::Balance. The current contents of the scratch buffer are overwritten.
-	ext_gas_price(ctx) => {
-		ctx.scratch_buf.clear();
-		ctx.gas_meter.gas_price().encode_to(&mut ctx.scratch_buf);
 		Ok(())
 	},
 
