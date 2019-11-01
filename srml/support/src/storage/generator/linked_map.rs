@@ -126,9 +126,9 @@ where
 				Some(value) => value,
 				None => {
 					// TODO #3700: error should be handleable.
-					runtime_print::print(
-						"ERROR: Corrupted state: linked map {}: next value doesn't exist at {:x}",
-						G::prefix(), next_full_key,
+					runtime_print!(
+						"ERROR: Corrupted state: linked map {:?}: next value doesn't exist at {:?}",
+						G::prefix(), next_full_key.as_ref(),
 					);
 					return None
 				}
@@ -164,9 +164,9 @@ where
 			unhashed::put(prev_key.as_ref(), &res);
 		} else {
 			// TODO #3700: error should be handleable.
-			runtime_print::print(
-				"ERROR: Corrupted state: linked map {}: previous value doesn't exist at {:x}",
-				G::prefix(), next_full_key,
+			runtime_print!(
+				"ERROR: Corrupted state: linked map {:?}: previous value doesn't exist at {:?}",
+				G::prefix(), prev_key,
 			);
 		}
 	} else {
@@ -180,9 +180,9 @@ where
 			unhashed::put(next_key.as_ref(), &res);
 		} else {
 			// TODO #3700: error should be handleable.
-			runtime_print::print(
-				"ERROR: Corrupted state: linked map {}: next value doesn't exist at {:x}",
-				G::prefix(), next_full_key,
+			runtime_print!(
+				"ERROR: Corrupted state: linked map {:?}: next value doesn't exist at {:?}",
+				G::prefix(), next_key,
 			);
 		}
 	}
@@ -221,11 +221,12 @@ where
 				unhashed::put(head_key.as_ref(), &(data, new_linkage));
 			} else {
 				// TODO #3700: error should be handleable.
-				runtime_print::print(
-					"ERROR: Corrupted state: linked map {}: head value doesn't exist at {:x}",
-					G::prefix(), head_key,
+				runtime_print!(
+					"ERROR: Corrupted state: linked map {:?}: head value doesn't exist at {:?}",
+					G::prefix(), head_key.as_ref(),
 				);
 				// Thus we consider we are first - update the head and produce empty linkage
+
 				write_head::<_, _, _, G>(Some(key));
 				return Linkage::default();
 			}
