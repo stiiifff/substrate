@@ -27,7 +27,13 @@ use codec::{Codec, Encode, Decode};
 /// Return the value of the item in storage under `key`, or `None` if there is no explicit entry.
 pub fn get<T: Decode + Sized>(storage_key: &[u8], key: &[u8]) -> Option<T> {
 	runtime_io::child_storage(storage_key, key).map(|v| {
-		Decode::decode(&mut &v[..]).expect("storage is not null, therefore must be a valid type")
+		Decode::decode(&mut &val[..]).map(Some).unwrap_or_else(|_| {
+			// TODO #3700: error should be handleable.
+			runtime_print::print(
+				"ERROR: Corrupted state in child trie at {:x}/{:x}", storage_key, key
+			);
+			None
+		})
 	})
 }
 
