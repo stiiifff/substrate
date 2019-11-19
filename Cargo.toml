@@ -62,6 +62,7 @@ members = [
 	"paint/grandpa",
 	"paint/im-online",
 	"paint/indices",
+	"paint/instant-seal",
 	"paint/membership",
 	"paint/metadata",
 	"paint/nicks",
