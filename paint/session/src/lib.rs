@@ -176,7 +176,8 @@ pub trait OnSessionEnding<ValidatorId> {
 	/// `ending_index` is the index of the currently ending session.
 	/// The returned validator set, if any, will not be applied until `will_apply_at`.
 	/// `will_apply_at` is guaranteed to be at least `ending_index + 1`, since session indices don't
-	/// repeat, but it could be some time after in case we are staging authority set changes.
+	/// repeat, but it could be some time after in case we are staging authority set changes. And
+	/// is guaranteed to be superior or equal to previous will_apply_at.
 	fn on_session_ending(
 		ending_index: SessionIndex,
 		will_apply_at: SessionIndex

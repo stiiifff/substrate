@@ -102,6 +102,7 @@ impl<T: Trait> Module<T> {
 pub trait OnSessionEnding<ValidatorId, FullIdentification>: crate::OnSessionEnding<ValidatorId> {
 	/// If there was a validator set change, its returns the set of new validators along with the
 	/// old validators and their full identifications.
+	/// Old validators are the validators for the session just before will_apply_at.
 	fn on_session_ending(ending: SessionIndex, will_apply_at: SessionIndex)
 		-> Option<(Vec<ValidatorId>, Vec<(ValidatorId, FullIdentification)>)>;
 }
